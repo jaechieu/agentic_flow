@@ -1,7 +1,3 @@
-interface ProcessedData {
-  [key: string]: number;
-}
-
 export interface ProcessedPDFData {
   message: string;
   data: {

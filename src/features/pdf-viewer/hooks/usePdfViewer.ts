@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { pdfjs } from 'react-pdf'
-import { ProcessedPDFData } from '../types/types'
 import { processPDF } from '../services/pdfService'
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`

@@ -26,7 +26,7 @@ export function ProcessedContent({ data, pdfName }: ProcessedContentProps) {
     <Card className="mb-4">
       <CardHeader>
         <CardTitle className="text-lg">
-          Processed Content from "{pdfName}"
+          Processed Content from {pdfName}
         </CardTitle>
       </CardHeader>
       <CardContent>
