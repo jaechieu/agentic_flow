@@ -10,19 +10,23 @@ import ReactFlow, {
   useEdgesState,
   addEdge,
   Connection,
-  NodeChange,
-  EdgeChange,
   MarkerType,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import AddNodeDialog from "../components/AddNodeDialog";
 import EditNodeDialog from "../components/EditNodeDialog";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Play } from "lucide-react";
 import CustomEdge from "../components/CustomEdge";
+import CustomNode from "../components/CustomNode";
+import { NodeInfo } from "@/types/NodeInfo";
 
 const edgeTypes = {
   custom: CustomEdge,
+};
+
+const nodeTypes = {
+  custom: CustomNode,
 };
 
 export default function GraphEditor() {
@@ -38,21 +42,17 @@ export default function GraphEditor() {
   );
 
   const handleAddNode = useCallback(
-    (label: string, parentNodeId: string | null, conditions: string[]) => {
-      const newNode: Node = {
-        id: `${nodes.length + 1}`,
-        data: { label },
-        position: { x: Math.random() * 500, y: Math.random() * 500 },
-      };
+    (nodeInfo: NodeInfo) => {
+      const newNode = nodeInfo.toReactFlowNode();
       setNodes((nds) => nds.concat(newNode));
 
-      if (parentNodeId && parentNodeId !== "none") {
+      if (nodeInfo.parentId && nodeInfo.parentId !== "none") {
         const newEdge: Edge = {
-          id: `e${edges.length + 1}`,
-          source: parentNodeId,
-          target: newNode.id,
+          id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          source: nodeInfo.parentId,
+          target: nodeInfo.id,
           type: "custom",
-          data: { conditions },
+          data: { conditions: nodeInfo.conditions },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 20,
@@ -65,36 +65,26 @@ export default function GraphEditor() {
 
       setIsAddNodeOpen(false);
     },
-    [nodes, edges, setNodes, setEdges]
+    [setNodes, setEdges]
   );
 
   const handleEditNode = useCallback(
-    (
-      id: string,
-      newLabel: string,
-      newParentId: string | null,
-      newConditions: string[]
-    ) => {
+    (nodeInfo: NodeInfo) => {
       setNodes((nds) =>
-        nds.map((node) =>
-          node.id === id
-            ? { ...node, data: { ...node.data, label: newLabel } }
-            : node
+        nds.map((node) => 
+          node.id === nodeInfo.id ? nodeInfo.toReactFlowNode() : node
         )
       );
 
       setEdges((eds) => {
-        // Remove existing parent edge
-        const filteredEdges = eds.filter((edge) => edge.target !== id);
-
-        // Add new parent edge if a parent is selected
-        if (newParentId && newParentId !== "none") {
+        const filteredEdges = eds.filter((edge) => edge.target !== nodeInfo.id);
+        if (nodeInfo.parentId && nodeInfo.parentId !== "none") {
           const newEdge: Edge = {
             id: `e${filteredEdges.length + 1}`,
-            source: newParentId,
-            target: id,
+            source: nodeInfo.parentId,
+            target: nodeInfo.id,
             type: "custom",
-            data: { conditions: newConditions },
+            data: { conditions: nodeInfo.conditions },
             markerEnd: {
               type: MarkerType.ArrowClosed,
               width: 20,
@@ -104,7 +94,6 @@ export default function GraphEditor() {
           };
           return [...filteredEdges, newEdge];
         }
-
         return filteredEdges;
       });
 
@@ -115,10 +104,10 @@ export default function GraphEditor() {
   );
 
   const handleDeleteNode = useCallback(
-    (id: string) => {
-      setNodes((nds) => nds.filter((node) => node.id !== id));
+    (nodeInfo: NodeInfo) => {
+      setNodes((nds) => nds.filter((node) => node.id !== nodeInfo.id));
       setEdges((eds) =>
-        eds.filter((edge) => edge.source !== id && edge.target !== id)
+        eds.filter((edge) => edge.source !== nodeInfo.id && edge.target !== nodeInfo.id)
       );
       setIsEditNodeOpen(false);
       setSelectedNode(null);
@@ -131,6 +120,11 @@ export default function GraphEditor() {
     setIsEditNodeOpen(true);
   }, []);
 
+  const handleRunAgent = useCallback(() => {
+    console.log("Running agent with current graph configuration...");
+    // Add your agent running logic here
+  }, []);
+
   return (
     <div className="w-full h-screen">
       <ReactFlow
@@ -141,6 +135,7 @@ export default function GraphEditor() {
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         edgeTypes={edgeTypes}
+        nodeTypes={nodeTypes}
         defaultEdgeOptions={{
           type: "custom",
           markerEnd: {
@@ -154,9 +149,12 @@ export default function GraphEditor() {
         <Background />
         <Controls />
       </ReactFlow>
-      <div className="absolute top-4 left-4">
+      <div className="absolute top-4 left-4 flex flex-col gap-2">
         <Button onClick={() => setIsAddNodeOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Node
+        </Button>
+        <Button onClick={handleRunAgent}>
+          <Play className="mr-2 h-4 w-4" /> Run Agent
         </Button>
       </div>
       <AddNodeDialog

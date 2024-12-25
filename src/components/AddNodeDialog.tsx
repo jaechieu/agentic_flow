@@ -17,16 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusCircle } from "lucide-react";
+import { useNodeTypes } from "@/hooks/useNodeTypes";
+import { NodeInfo } from "@/types/NodeInfo";
 
 interface AddNodeDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (
-    label: string,
-    parentNodeId: string | null,
-    conditions: string[]
-  ) => void;
+  onAdd: (nodeInfo: NodeInfo) => void;
   nodes: Node[];
 }
 
@@ -36,32 +33,46 @@ export default function AddNodeDialog({
   onAdd,
   nodes,
 }: AddNodeDialogProps) {
-  const [label, setLabel] = useState("");
-  const [parentNodeId, setParentNodeId] = useState<string | null>(null);
-  const [conditions, setConditions] = useState<string[]>([""]);
+  const [nodeInfo, setNodeInfo] = useState<Partial<NodeInfo>>({
+    label: "",
+    parentId: null,
+    type: "",
+    conditions: [""],
+  });
+  const { nodeTypes, loading, error } = useNodeTypes();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (label.trim()) {
-      onAdd(
-        label.trim(),
-        parentNodeId,
-        conditions.filter((c) => c.trim() !== "")
+    if (nodeInfo.label?.trim() && nodeInfo.type) {
+      const newNode = new NodeInfo(
+        nodeInfo.label,
+        nodeInfo.type,
+        nodeInfo.parentId,
+        nodeInfo.conditions?.filter(c => c.trim() !== ""),
+        undefined,
       );
-      setLabel("");
-      setParentNodeId(null);
-      setConditions([""]);
+      onAdd(newNode);
+      setNodeInfo({
+        label: "",
+        parentId: null,
+        type: "",
+        conditions: [""],
+      });
     }
   };
 
   const handleAddCondition = () => {
-    setConditions([...conditions, ""]);
+    setNodeInfo(prev => ({
+      ...prev,
+      conditions: [...(prev.conditions || []), ""]
+    }));
   };
 
   const handleConditionChange = (index: number, value: string) => {
-    const newConditions = [...conditions];
-    newConditions[index] = value;
-    setConditions(newConditions);
+    setNodeInfo(prev => ({
+      ...prev,
+      conditions: prev.conditions?.map((c, i) => i === index ? value : c) || []
+    }));
   };
 
   return (
@@ -78,8 +89,8 @@ export default function AddNodeDialog({
               </Label>
               <Input
                 id="name"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
+                value={nodeInfo.label || ""}
+                onChange={(e) => setNodeInfo(prev => ({ ...prev, label: e.target.value }))}
                 className="col-span-3"
               />
             </div>
@@ -88,8 +99,8 @@ export default function AddNodeDialog({
                 Parent Node
               </Label>
               <Select
-                onValueChange={setParentNodeId}
-                value={parentNodeId || undefined}
+                onValueChange={(value) => setNodeInfo(prev => ({ ...prev, parentId: value }))}
+                value={nodeInfo.parentId || undefined}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select a parent node" />
@@ -105,11 +116,38 @@ export default function AddNodeDialog({
                 </SelectContent>
               </Select>
             </div>
-            {parentNodeId && parentNodeId !== "none" && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="node-type" className="text-right">
+                Type of Node
+              </Label>
+              <Select
+                onValueChange={(value) => setNodeInfo(prev => ({ ...prev, type: value }))}
+                value={nodeInfo.type || undefined}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue
+                    placeholder={loading ? "Loading..." : "Select node type"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {error && (
+                    <SelectItem value="error" disabled>
+                      Error loading node types
+                    </SelectItem>
+                  )}
+                  {nodeTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {nodeInfo.parentId && nodeInfo.parentId !== "none" && (
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right">Conditions</Label>
                 <div className="col-span-3 space-y-2">
-                  {conditions.map((condition, index) => (
+                  {nodeInfo.conditions?.map((condition, index) => (
                     <Input
                       key={index}
                       value={condition}
