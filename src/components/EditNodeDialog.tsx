@@ -41,6 +41,7 @@ export default function EditNodeDialog({
 }: EditNodeDialogProps) {
   const [nodeInfo, setNodeInfo] = useState<NodeInfo | null>(null);
   const { nodeTypes, loading, error } = useNodeTypes();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (node) {
@@ -65,77 +66,148 @@ export default function EditNodeDialog({
   };
 
   const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
     if (nodeInfo) {
       onDelete(nodeInfo);
+      setShowDeleteConfirm(false);
     }
   };
 
   const handleAddCondition = () => {
-    setNodeInfo((prev) => {
+    setNodeInfo(prev => {
       if (!prev) return null;
-      return new NodeInfo(
-        prev.label,
-        prev.type,
-        prev.parentId,
-        [...prev.conditions, ""],
-        prev.position
-      );
+      return updateNodeInfo(prev, { 
+        conditions: [...prev.conditions, ""]
+      });
     });
   };
 
   const handleConditionChange = (index: number, value: string) => {
-    setNodeInfo((prev) => {
+    setNodeInfo(prev => {
       if (!prev) return null;
-      return new NodeInfo(
-        prev.label,
-        prev.type,
-        prev.parentId,
-        prev.conditions.map((c, i) => (i === index ? value : c)),
-        prev.position
-      );
+      return updateNodeInfo(prev, {
+        conditions: prev.conditions.map((c, i) => i === index ? value : c)
+      });
     });
   };
 
+  const updateNodeInfo = (prev: NodeInfo | null, updates: Partial<NodeInfo>) => {
+    if (!prev) return null;
+    const newNodeInfo = new NodeInfo(
+      updates.label ?? prev.label,
+      updates.type ?? prev.type,
+      updates.parentId ?? prev.parentId,
+      updates.conditions ?? prev.conditions,
+      updates.position ?? prev.position
+    );
+    newNodeInfo.id = prev.id;
+    return newNodeInfo;
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit Node</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Label
-              </Label>
-              <Input
-                id="name"
-                value={nodeInfo?.label || ""}
-                onChange={(e) =>
-                  setNodeInfo((prev) => {
-                    if (!prev) return null;
-                    return new NodeInfo(
-                      e.target.value,
-                      prev.type,
-                      prev.parentId,
-                      prev.conditions,
-                      prev.position
-                    );
-                  })
-                }
-                className="col-span-3"
-              />
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Node</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">Label</Label>
+                <Input
+                  id="name"
+                  value={nodeInfo?.label || ""}
+                  onChange={(e) => setNodeInfo(prev => updateNodeInfo(prev, { label: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="parent-node" className="text-right">Parent Node</Label>
+                <Select
+                  onValueChange={(value) => setNodeInfo(prev => updateNodeInfo(prev, { parentId: value }))}
+                  value={nodeInfo?.parentId || undefined}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a parent node" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {nodes && nodes.filter(n => n.id !== nodeInfo?.id).map((node) => (
+                      <SelectItem key={node.id} value={node.id}>
+                        {node.data.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="node-type" className="text-right">Type of Node</Label>
+                <Select
+                  onValueChange={(value) => setNodeInfo(prev => updateNodeInfo(prev, { type: value }))}
+                  value={nodeInfo?.type || undefined}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder={loading ? "Loading..." : "Select node type"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {error && <SelectItem value="error" disabled>Error loading node types</SelectItem>}
+                    {nodeTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {nodeInfo?.parentId && nodeInfo.parentId !== "none" && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">Conditions</Label>
+                  <div className="col-span-3 space-y-2">
+                    {nodeInfo.conditions.map((condition, index) => (
+                      <Input
+                        key={index}
+                        value={condition}
+                        onChange={(e) => handleConditionChange(index, e.target.value)}
+                        placeholder={`Condition ${index + 1}`}
+                      />
+                    ))}
+                    <Button type="button" variant="outline" onClick={handleAddCondition}>
+                      Add Condition
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
-            {/* Rest of your form fields similarly updated */}
+            <DialogFooter>
+              <Button type="button" variant="destructive" onClick={handleDelete}>Delete</Button>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Node</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            Are you sure you want to delete this node? This action cannot be undone.
           </div>
           <DialogFooter>
-            <Button type="button" variant="destructive" onClick={handleDelete}>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
               Delete
             </Button>
-            <Button type="submit">Save Changes</Button>
           </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
