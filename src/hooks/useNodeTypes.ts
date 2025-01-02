@@ -14,7 +14,6 @@ export function useNodeTypes() {
   useEffect(() => {
     const fetchNodeTypes = async () => {
       try {
-        // Fetching data from local server running on localhost:3001
         const response = await fetch('http://localhost:3001/node-types');
         if (!response.ok) throw new Error('Failed to fetch node types');
         
