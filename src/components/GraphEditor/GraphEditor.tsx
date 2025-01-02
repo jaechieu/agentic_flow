@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import ReactFlow, { Controls, Background, Node } from "reactflow";
 import AddNodeDialog from "@/components/AddNodeDialog";
 import EditNodeDialog from "@/components/EditNodeDialog";
@@ -20,8 +20,15 @@ export function GraphEditor() {
   const [isEditNodeOpen, setIsEditNodeOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
-  const { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onConnect } =
-    useGraphState();
+  const {
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+  } = useGraphState();
   const { handleAddNode, handleEditNode, handleDeleteNode, handleRunAgent } =
     useGraphHandlers({
       setNodes,
