@@ -13,8 +13,8 @@ export function GraphControls({ onAddNode, onRunAgent }: GraphControlsProps) {
         <PlusCircle className="mr-2 h-4 w-4" /> Add Node
       </Button>
       <Button onClick={onRunAgent}>
-        <Play className="mr-2 h-4 w-4" /> Run Agent
+        <Play className="mr-2 h-4 w-4" /> Run Flow
       </Button>
     </div>
   );
-} 
+}
