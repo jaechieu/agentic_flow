@@ -1,6 +1,6 @@
 import { useCallback, Dispatch, SetStateAction } from "react";
-import { Node, Edge, MarkerType } from 'reactflow';
-import { NodeInfo } from "@/types/NodeInfo";
+import { Node, Edge } from 'reactflow';
+import { NodeInfo, createEdge } from "@/types/graph";
 
 interface GraphHandlerProps {
   setNodes: Dispatch<SetStateAction<Node[]>>;
@@ -8,22 +8,6 @@ interface GraphHandlerProps {
   setIsAddNodeOpen: Dispatch<SetStateAction<boolean>>;
   setIsEditNodeOpen: Dispatch<SetStateAction<boolean>>;
   setSelectedNode: Dispatch<SetStateAction<Node | null>>;
-}
-
-function createEdge(source: string, target: string, conditions: string[]) {
-  return {
-    id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    source,
-    target,
-    type: "custom",
-    data: { conditions },
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      width: 20,
-      height: 20,
-      color: "#888",
-    },
-  };
 }
 
 export function useGraphHandlers({ 

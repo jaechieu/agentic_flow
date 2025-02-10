@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNodeTypes } from "@/hooks/useNodeTypes";
-import { NodeInfo } from "@/types/NodeInfo";
+import { NodeInfo } from "@/types/graph";
 
 interface AddNodeDialogProps {
   isOpen: boolean;
@@ -48,8 +48,8 @@ export default function AddNodeDialog({
         nodeInfo.label,
         nodeInfo.type,
         nodeInfo.parentId,
-        nodeInfo.conditions?.filter(c => c.trim() !== ""),
-        undefined,
+        nodeInfo.conditions?.filter((c) => c.trim() !== ""),
+        undefined
       );
       onAdd(newNode);
       setNodeInfo({
@@ -62,16 +62,17 @@ export default function AddNodeDialog({
   };
 
   const handleAddCondition = () => {
-    setNodeInfo(prev => ({
+    setNodeInfo((prev) => ({
       ...prev,
-      conditions: [...(prev.conditions || []), ""]
+      conditions: [...(prev.conditions || []), ""],
     }));
   };
 
   const handleConditionChange = (index: number, value: string) => {
-    setNodeInfo(prev => ({
+    setNodeInfo((prev) => ({
       ...prev,
-      conditions: prev.conditions?.map((c, i) => i === index ? value : c) || []
+      conditions:
+        prev.conditions?.map((c, i) => (i === index ? value : c)) || [],
     }));
   };
 
@@ -90,7 +91,9 @@ export default function AddNodeDialog({
               <Input
                 id="name"
                 value={nodeInfo.label || ""}
-                onChange={(e) => setNodeInfo(prev => ({ ...prev, label: e.target.value }))}
+                onChange={(e) =>
+                  setNodeInfo((prev) => ({ ...prev, label: e.target.value }))
+                }
                 className="col-span-3"
               />
             </div>
@@ -99,7 +102,9 @@ export default function AddNodeDialog({
                 Parent Node
               </Label>
               <Select
-                onValueChange={(value) => setNodeInfo(prev => ({ ...prev, parentId: value }))}
+                onValueChange={(value) =>
+                  setNodeInfo((prev) => ({ ...prev, parentId: value }))
+                }
                 value={nodeInfo.parentId || undefined}
               >
                 <SelectTrigger className="col-span-3">
@@ -121,7 +126,9 @@ export default function AddNodeDialog({
                 Type of Node
               </Label>
               <Select
-                onValueChange={(value) => setNodeInfo(prev => ({ ...prev, type: value }))}
+                onValueChange={(value) =>
+                  setNodeInfo((prev) => ({ ...prev, type: value }))
+                }
                 value={nodeInfo.type || undefined}
               >
                 <SelectTrigger className="col-span-3">

@@ -5,39 +5,66 @@ import { ChatHistory, Message } from "@/types/chat";
 import { ChatSidebar } from "./ChatSidebar";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { WorkflowNode, WorkflowEdge } from "@/types/graph";
+import { createWorkflow } from "@/lib/workflowTemplates";
+import { useWorkflowBuilder } from "@/hooks/useWorkflowBuilder";
+import { useChat } from "@/contexts/ChatContext";
+import { FlowPreview } from "./FlowPreview";
+import { useRouter } from "next/navigation";
+import { extractWorkflowSteps } from "@/lib/openai";
+import { MarkerType } from "reactflow";
 
 const SUGGESTED_MESSAGES = [
   "What else can I do with Gumloop?",
   "Automate data extraction to Google Sheets",
   "Send automatic follow-up emails to leads",
   "Get Slack alerts for new customer sign-ups",
-  "Create and email weekly reports from analytics",
+  "Scrape nearby properties for data and send to Google Sheets",
 ];
 
 interface ChatWithHistoryProps {
-  onFlowGenerated: () => void;
+  onFlowGenerated: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void;
+  showHistory?: boolean;
 }
 
-export function ChatWithHistory({ onFlowGenerated }: ChatWithHistoryProps) {
-  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([
-    { id: 1, title: "New Workflow", messages: [] },
+interface WorkflowChatHistory {
+  id: number;
+  title: string;
+  messages: Message[];
+  workflow: {
+    nodes: WorkflowNode[];
+    edges: WorkflowEdge[];
+  } | null;
+}
+
+export function ChatWithHistory({
+  onFlowGenerated,
+  showHistory = true,
+}: ChatWithHistoryProps) {
+  const { messages, setMessages, inputValue, setInputValue } = useChat();
+  const [chatHistories, setChatHistories] = useState<WorkflowChatHistory[]>([
+    { id: 1, title: "New Workflow", messages: [], workflow: null },
   ]);
   const [currentChatId, setCurrentChatId] = useState<number>(1);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (inputValue.trim()) {
-      const filtered = SUGGESTED_MESSAGES.filter((msg) =>
-        msg.toLowerCase().includes(inputValue.toLowerCase())
-      );
-      setSuggestions(filtered);
+    if (messages.length === 0) {
+      if (inputValue.trim()) {
+        const filtered = SUGGESTED_MESSAGES.filter((msg) =>
+          msg.toLowerCase().includes(inputValue.toLowerCase())
+        );
+        setSuggestions(filtered);
+      } else {
+        setSuggestions(SUGGESTED_MESSAGES);
+      }
     } else {
-      setSuggestions(SUGGESTED_MESSAGES);
+      setSuggestions([]);
     }
-  }, [inputValue]);
+  }, [inputValue, messages.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +72,14 @@ export function ChatWithHistory({ onFlowGenerated }: ChatWithHistoryProps) {
     sendMessage(inputValue);
   };
 
-  const sendMessage = (content: string) => {
+  const createExampleWorkflow = (type: string) => {
+    const workflow = createWorkflow(type);
+    if (workflow) {
+      onFlowGenerated(workflow.nodes, workflow.edges);
+    }
+  };
+
+  const sendMessage = async (content: string) => {
     const newMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -55,39 +89,70 @@ export function ChatWithHistory({ onFlowGenerated }: ChatWithHistoryProps) {
     setMessages((prev) => [...prev, newMessage]);
     setInputValue("");
     setSuggestions(SUGGESTED_MESSAGES);
+    setIsLoading(true);
 
-    // Update chat history with new title if it's the first message
-    setChatHistories((prev) =>
-      prev.map((chat) =>
-        chat.id === currentChatId
-          ? {
-              ...chat,
-              title: chat.messages.length === 0 ? content : chat.title,
-              messages: [...chat.messages, newMessage],
-            }
-          : chat
-      )
-    );
+    try {
+      const steps = await extractWorkflowSteps(content);
+      const nodes: WorkflowNode[] = steps.map((step, index) => ({
+        id: step.id,
+        type: "custom" as const,
+        position: { x: 100, y: 100 + index * 150 },
+        data: {
+          label: step.label,
+          type: step.type,
+        },
+      }));
+      const edges: WorkflowEdge[] = steps.flatMap((step) =>
+        step.dependencies.map((depId) => ({
+          id: `${depId}-${step.id}`,
+          source: depId,
+          target: step.id,
+          type: "custom" as const,
+          data: { conditions: ["Success"] },
+          markerEnd: {
+            type: MarkerType.Arrow,
+            width: 20,
+            height: 20,
+            color: "#000000",
+          },
+        }))
+      );
 
-    setTimeout(() => {
+      const newWorkflow = { nodes, edges };
+
+      // Add bot response
       const botResponse: Message = {
         id: Date.now().toString(),
-        content: "Let me help you create an AI workflow for that.",
+        content:
+          "I've created a workflow based on your request. Click 'Create Flow' to view and edit it.",
         sender: "assistant",
       };
 
+      // Update both messages and chat history
       setMessages((prev) => [...prev, botResponse]);
-
-      // Update chat history with bot response
       setChatHistories((prev) =>
         prev.map((chat) =>
           chat.id === currentChatId
-            ? { ...chat, messages: [...chat.messages, botResponse] }
+            ? {
+                ...chat,
+                title: chat.messages.length === 0 ? content : chat.title,
+                messages: [...chat.messages, newMessage, botResponse],
+                workflow: newWorkflow,
+              }
             : chat
         )
       );
-    }, 1000);
-    onFlowGenerated();
+    } catch (error) {
+      console.error("Error processing message:", error);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        content: "Sorry, I couldn't process that request. Please try again.",
+        sender: "assistant",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -101,6 +166,7 @@ export function ChatWithHistory({ onFlowGenerated }: ChatWithHistoryProps) {
       id: newChatId,
       title: `New Workflow ${newChatId}`,
       messages: [],
+      workflow: null,
     };
     setChatHistories((prev) => [...prev, newChat]);
     setCurrentChatId(newChatId);
@@ -110,21 +176,56 @@ export function ChatWithHistory({ onFlowGenerated }: ChatWithHistoryProps) {
   const selectChat = (chatId: number) => {
     setCurrentChatId(chatId);
     const selectedChat = chatHistories.find((ch) => ch.id === chatId);
-    setMessages(selectedChat?.messages || []);
+    if (selectedChat) {
+      setMessages(selectedChat.messages);
+      setChatHistories((prev) =>
+        prev.map((chat) =>
+          chat.id === currentChatId
+            ? {
+                ...chat,
+                messages: messages,
+              }
+            : chat
+        )
+      );
+    }
   };
+
+  const handleCreateFlow = () => {
+    const currentWorkflow = chatHistories.find(
+      (ch) => ch.id === currentChatId
+    )?.workflow;
+    if (currentWorkflow && currentWorkflow.nodes.length > 0) {
+      localStorage.setItem("chatMessages", JSON.stringify(messages));
+      localStorage.setItem("currentWorkflow", JSON.stringify(currentWorkflow));
+      router.push("/graph");
+    } else {
+      console.log("No workflow steps available");
+    }
+  };
+
+  const currentWorkflow = chatHistories.find(
+    (ch) => ch.id === currentChatId
+  )?.workflow;
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <ChatSidebar
-        chatHistories={chatHistories}
-        currentChatId={currentChatId}
-        onNewChat={startNewChat}
-        onSelectChat={selectChat}
-      />
+      {showHistory && (
+        <ChatSidebar
+          chatHistories={chatHistories}
+          currentChatId={currentChatId}
+          onNewChat={startNewChat}
+          onSelectChat={selectChat}
+        />
+      )}
 
-      <div className="flex-1" />
+      {showHistory && <div className="flex-1" />}
 
-      <div className="w-[30%] flex flex-col border-x border-gray-200/30">
+      <div
+        className={`${
+          showHistory ? "w-[30%]" : "w-full"
+        } flex flex-col border-x border-gray-200/30`}
+      >
         {messages.length === 0 && (
           <div className="text-center mt-6 mb-6">
             <h1 className="text-3xl font-bold mb-2">What can I help with?</h1>
@@ -135,9 +236,9 @@ export function ChatWithHistory({ onFlowGenerated }: ChatWithHistoryProps) {
           </div>
         )}
 
-        <MessageList messages={messages} />
+        <MessageList messages={messages} isLoading={isLoading} />
 
-        {suggestions.length > 0 && (
+        {suggestions.length > 0 && messages.length === 0 && (
           <div className="flex flex-wrap gap-2 p-4">
             {suggestions.map((suggestion) => (
               <button
@@ -159,7 +260,14 @@ export function ChatWithHistory({ onFlowGenerated }: ChatWithHistoryProps) {
         />
       </div>
 
-      <div className="flex-1" />
+      {showHistory && <div className="flex-1" />}
+
+      {showHistory && (
+        <FlowPreview
+          onCreateFlow={handleCreateFlow}
+          nodes={currentWorkflow?.nodes || []}
+        />
+      )}
     </div>
   );
 }
